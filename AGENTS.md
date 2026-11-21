@@ -146,6 +146,20 @@ reads its plugins only at boot, so this cannot live in the plugin itself. Keep
 never let a sync failure stop the TUI from starting. `tests/follow.test.mjs` covers
 it against throwaway profile directories.
 
+## 0.5.0 surface rules
+
+- **`@` mentions** (`lib/file-mentions.js`) read the host `fileReferences` service inside a session and
+  DSH's bounded workspace index on the title screen. They insert path text only — never file contents —
+  and must never create a Session just to complete a path.
+- **`!command`** (`lib/composer-shell.js`) runs as the person, like DSH's user terminals: it is *not*
+  gated by the agent's permission preset or sandbox, and its output is not a Session event. It reaches
+  the model only as context on the person's next message. Do not route it through the agent's bash tool.
+- **`terminal-host.patch.yml`** adds only host services (`file-reference-local`, the inspect registry,
+  the bundle-order warning). A row there may provide a service; it must never widen permissions or
+  mount the Web server. Keep the module imports lazy so a missing package leaves the feature off
+  instead of breaking the boot.
+- **Composer editing** (`lib/composer-edit.js`) is grapheme-safe and leaves `Ctrl+E`/`Ctrl+P` alone.
+
 ## Settings must work on both dsh generations
 
 The two dsh lines store settings in structurally different places, and a row that

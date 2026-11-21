@@ -1,0 +1,24 @@
+# Host rows the terminal interface adds to dsh-base. They carry no config and
+# never touch the agent's permissions: each one only provides a service the
+# shipped presets already expect from a Web host.
+- insert:
+    # `@file` completion needs a discovery provider; dsh-web-app mounts this
+    # one for the browser composer and the model's `read` tool reads the same
+    # namespace, so the paths offered here are the paths the model can read.
+    - id: file-reference-local
+      name: '@deepseek-ai/dsh-file-reference-local'
+
+    # Creator mode's `tool-cordis` row injects `cordisInspect`. The registry is
+    # mounted without the dynamic plugin runner or the Web server; the row is
+    # inert on a host that already provides the service (lib/cordis-inspect.js).
+    - id: tui-cordis-inspect
+      name: 'dsh-oc-tui/cordis-inspect'
+
+    # The Host-side inspect providers that registry answers from.
+    - id: cordis-inspect-providers
+      name: '@deepseek-ai/dsh-tool-cordis/host'
+
+    # A profile whose bundle list was reordered by a reinstall boots without the
+    # TUI's own layers; this row reports that instead of failing silently.
+    - id: tui-bundle-order
+      name: 'dsh-oc-tui/bundle-order'

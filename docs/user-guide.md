@@ -269,7 +269,13 @@ Choose a color theme under `Ctrl+P → Main → Theme`. DeepSeek Standard is the
 | `Ctrl+L` | Clear the transcript view. |
 | `Up` / `Down` | Move the caret across a multi-line prompt; on the first/last row, step through input history. |
 | `Shift+Up` / `Shift+Down` | Scroll the status rail (wide windows); without the rail they act as `Up` / `Down`. |
-| `Left` / `Right` | Move the caret within the input box. |
+| `Left` / `Right` | Move the caret by one character, including combined emoji and accented letters. |
+| `Alt+Left` / `Alt+Right` (or `Ctrl+Left` / `Ctrl+Right`) | Move by word. |
+| `Ctrl+A` / `Alt+End` | Move to the start / end of the current line. `Ctrl+E` remains the thinking slider. |
+| `Ctrl+U` / `Ctrl+K` | Delete to the start / end of the current line. |
+| `Ctrl+W` / `Alt+Backspace` | Delete the previous word. |
+| `Ctrl+O` | Open the current draft in an external editor, without sending it. |
+| `F2` / `Shift+F2` | Cycle through recent model choices. If there aren't two choices yet, open the model picker. |
 | `PgUp` / `PgDn` | Scroll the transcript. |
 | `Esc` | Close the session stats window, the thinking slider, or help; cancel an approval; cancel a running turn; clear the prompt you are typing. |
 | `Esc Esc` | Idle with an empty prompt: open the rewind picker. |
@@ -279,9 +285,21 @@ Choose a color theme under `Ctrl+P → Main → Theme`. DeepSeek Standard is the
 
 **Screenshots.** `Ctrl+S` saves the visible TUI, including terminal images, as a PNG with a window-style frame. The result appears in the top-right corner. The default destination is the user's Pictures folder; change it under `Ctrl+P → Main → Screenshot folder`. Clear the field to restore the default. The screenshot contains the visible screen, not the entire scrollback.
 
+### Shell commands
+
+Type `!` at the start of an empty prompt to run a command, the way DSH's own user terminals do. It runs as you, in the session's working directory, with your environment; it is **not** governed by the agent's permission preset or sandbox, because those decide what the model may do rather than what you may do. `Esc` or `Ctrl+C` cancels it, and cancelling kills the whole process group, including background children.
+
+The transcript shows the command and its output (the first 4000 characters). The command and its bounded output then travel with your **next** message as context, so the model sees what you saw; nothing is sent on its own. The TUI keeps the last four commands for that.
+
 ### Slash commands
 
-Built in: `/help` `/settings` `/new` `/resume <id>` `/model <id>` `/provider <route>` `/mode [id]` `/rewind` `/branch` `/stats` `/clear` `/cancel` `/quit` (`/exit` also works). `/mode` is described under [Agent modes](#agent-modes).
+Built in: `/help` `/settings` `/new` `/resume <id>` `/model <id>` `/provider <route>` `/mode [id]` `/editor` `/rewind` `/branch` `/stats` `/clear` `/cancel` `/quit` (`/exit` also works). `/mode` is described under [Agent modes](#agent-modes).
+
+`/editor` opens a blank draft; `Ctrl+O` edits the draft you already have. Set `VISUAL` or `EDITOR` to your editor, including any wait flag it needs (for example, `code --wait`). Saving and closing the editor returns the draft to the composer; it is not sent until you press Enter.
+
+Large text pastes appear as a one-line preview in the composer. Move the caret into the preview to see and edit the original text. Enter sends the full text, not the preview label.
+
+`/models` opens a searchable picker for active providers. Type a provider or model name to filter, press `*` to toggle a favorite, and press Enter to select the highlighted provider and model together. Favorites and recent choices last until the TUI exits. Choosing a route does not overwrite the default in Settings.
 
 Typing `/` opens a bounded suggestion list. Use `↑`/`↓` to select, `Tab` or a click to complete, and `Esc` to dismiss it while keeping the draft. `Enter` completes an unfinished command; an exact command executes immediately.
 

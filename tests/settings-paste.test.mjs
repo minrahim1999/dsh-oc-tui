@@ -23,7 +23,7 @@ process.env.DSH_TUI_LOCALE = "en"
 process.env.DSH_TUI_IGNORE_DSH_VERSION = "1"
 
 import { EventEmitter } from "node:events"
-import { mkdtempSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Context, Service } from "@deepseek-ai/cordis"
@@ -141,6 +141,20 @@ class FormsSettings extends Service {
 }
 
 const ctx = new Context()
+class PickerLlm extends Service {
+  constructor(ctx) { super(ctx, 'llm') }
+  listProviders() { return [{ id: 'paste-provider' }, { id: 'other-provider' }] }
+  async listModels(provider) { return [{ id: provider === 'paste-provider' ? 'paste-model' : 'other-model' }] }
+}
+new PickerLlm(ctx)
+class WorkspaceFilesStub extends Service {
+  constructor(ctx) { super(ctx, 'fileReferences'); this.requests = [] }
+  async list(agent, query, signal) {
+    this.requests.push({ agent, query, signal })
+    return [{ path: 'src/router.js', kind: 'file' }, { path: '../hidden.txt', kind: 'file' }]
+  }
+}
+const workspaceFiles = new WorkspaceFilesStub(ctx)
 new AgentsStub(ctx)
 new CommandsStub(ctx)
 new SessionPersistenceStub(ctx)
@@ -314,6 +328,81 @@ ok("the dialog closed", app.overlay === null, "overlay = " + String(app.overlay)
   await settle(10)
   ok("a paste with no dialog open reaches the composer", app.inputText.includes("hello composer"),
     "inputText = " + JSON.stringify(app.inputText))
+}
+
+// Large pastes are display-only chips. Editing in the external editor gets
+// the original bytes, not the chip text, and returns the terminal to raw mode.
+{
+  stdin.send("\x0e") // Ctrl+N opens an idle draft
+  await settle(10)
+  const pasted = Array.from({ length: 12 }, (_, i) => `paste-line-${i}`).join("\n")
+  stdin.send(bracketedPaste(pasted))
+  await settle(10)
+  ok("large paste keeps the original draft", app.inputText === pasted)
+  ok("large paste is collapsed on screen", lastFrame().includes("[Paste: 12 lines]") && !lastFrame().includes("paste-line-0"))
+  process.env.VISUAL = JSON.stringify([process.execPath, "-e", "require('node:fs').appendFileSync(process.argv[1], ' editor-saved')"])
+  stdin.send("\x0f") // Ctrl+O
+  for (let tries = 0; tries < 100 && !app.inputText.endsWith(" editor-saved"); tries++) await sleep(10)
+  ok("Ctrl+O edits the full draft and does not submit it", app.inputText === pasted + " editor-saved", JSON.stringify({ status: app.status, input: app.inputText, toast: app.toast?.text }))
+  ok("leaving the editor restores raw mode", stdin.rawMode === true)
+}
+
+{
+  stdin.send("\x0e") // Ctrl+N leaves the edited draft behind
+  await settle(10)
+  stdin.send('/models\r')
+  await settle(10)
+  ok("/models opens an interactive model chooser", lastFrame().includes('Choose a model') && lastFrame().includes('paste-model'))
+  stdin.send('other')
+  await settle(5)
+  ok("the model chooser filters across providers", app.settingsItems.length === 1 && app.settingsItems[0].route?.provider === 'other-provider')
+  stdin.send('*')
+  await settle(5)
+  ok("the chooser marks a favorite", app.settingsItems[0].label.startsWith('★'))
+  stdin.send('\r')
+  await settle(5)
+  ok("choosing a model updates both provider and model", app.overlay === null && app.provider === 'other-provider' && app.model === 'other-model')
+  stdin.send('/models\r')
+  await settle(5)
+  stdin.send('paste\r')
+  await settle(5)
+  stdin.send('\x1bOQ') // F2
+  await settle(5)
+  ok("F2 cycles back to a recent choice", app.provider === 'other-provider' && app.model === 'other-model')
+}
+
+{
+  // Inside a session, @ completion asks the host's fileReferences service for
+  // the live agent, drops paths outside the workspace, and inserts path text.
+  stdin.send("\x0e")
+  await settle(10)
+  stdin.send("hello\r")
+  for (let tries = 0; tries < 50 && ctx.get("agents").roots().length === 0; tries++) await sleep(10)
+  app.setStatus("idle")
+  stdin.send("see @src/ro")
+  for (let tries = 0; tries < 50 && app.fileMatches.length === 0; tries++) await sleep(10)
+  ok("@ asks the host file service for the live agent", workspaceFiles.requests.at(-1)?.query === "src/ro" && workspaceFiles.requests.at(-1)?.agent?.id !== undefined)
+  ok("paths outside the workspace are not offered", app.fileMatches.length === 1 && app.fileMatches[0].path === "src/router.js")
+  stdin.send("\t")
+  await settle(5)
+  ok("Tab inserts the mention as plain text", app.inputText === "see @src/router.js ", JSON.stringify(app.inputText))
+  ok("completion closes the list", app.fileMatches.length === 0)
+  stdin.send("mail@x")
+  await settle(10)
+  ok("an @ inside a word is not a mention", app.fileMatches.length === 0)
+}
+
+{
+  // `!command` runs as the person and queues its output for the next message.
+  stdin.send("\x0e")
+  await settle(10)
+  const cwd = join(smokeHome, "shell-cwd")
+  mkdirSync(cwd, { recursive: true })
+  stdin.send("!pwd; exit 4\r")
+  for (let tries = 0; tries < 100 && !lastFrame().includes("exit code 4"); tries++) await sleep(10)
+  const frame = lastFrame()
+  ok("a !command echoes and runs", frames.some(f => f.includes("!pwd; exit 4")))
+  ok("its output and exit status are shown", frame.includes("exit code 4"))
 }
 
 Object.defineProperty(process, "stdin", realStdin)
