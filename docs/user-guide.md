@@ -275,6 +275,11 @@ Choose a color theme under `Ctrl+P → Main → Theme`. DeepSeek Standard is the
 | `Ctrl+U` / `Ctrl+K` | Delete to the start / end of the current line. |
 | `Ctrl+W` / `Alt+Backspace` | Delete the previous word. |
 | `Ctrl+O` | Open the current draft in an external editor, without sending it. |
+| `F1` / `/commands` | Open the command palette: every action this view can run, filtered as you type. |
+| `Ctrl+T` | Show or hide thinking boxes. The text is kept, so it comes back. |
+| `Ctrl+Z` | Suspend the TUI back to your shell; run `fg` to return. |
+| `/undo` | Undo the last message: its files are restored and the prompt returns to the composer. |
+| `/redo` | Reopen the session the undo left untouched. |
 | `F2` / `Shift+F2` | Cycle through recent model choices. If there aren't two choices yet, open the model picker. |
 | `PgUp` / `PgDn` | Scroll the transcript. |
 | `Esc` | Close the session stats window, the thinking slider, or help; cancel an approval; cancel a running turn; clear the prompt you are typing. |
@@ -284,6 +289,24 @@ Choose a color theme under `Ctrl+P → Main → Theme`. DeepSeek Standard is the
 **Mouse.** The wheel scrolls the transcript — or the status rail when the pointer rests over it, or the Settings window while it is open. Hold the left button and drag across the transcript to select text, then press the right button to copy the selection.
 
 **Screenshots.** `Ctrl+S` saves the visible TUI, including terminal images, as a PNG with a window-style frame. The result appears in the top-right corner. The default destination is the user's Pictures folder; change it under `Ctrl+P → Main → Screenshot folder`. Clear the field to restore the default. The screenshot contains the visible screen, not the entire scrollback.
+
+
+### The command palette
+
+`F1` (or `/commands`) lists what this view can do — settings, a new session, models, modes, resume,
+rewind, undo/redo, the external editor, stats, help and quit — with the shortcut beside each row.
+Type to filter, Enter to run, Esc to close. The palette is the discovery surface: a feature that
+is not on the list still has its shortcut, but the list is where a new one should appear.
+
+### Undo and redo
+
+`/undo` cuts the last exchange the way `/rewind` does — a new session forked from before the prompt,
+with the working tree restored from its backup — and puts that prompt back in the composer, ready to
+edit or resend. The session it replaced is untouched on disk, so `/redo` reopens it. Sending a new
+message or switching session drops the redo.
+
+The terminal window title follows the session (`tui-transcript` → *Terminal window title*). Turn it
+off if your terminal shows it as chrome.
 
 ### Shell commands
 

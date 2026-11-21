@@ -32,6 +32,21 @@ Not done in this release (next tier): undo/redo (P1.6), keybinds + leader (P2.1)
 queued-prompt editing (P2.7), diff viewer, light/system themes, `/btw`, terminal pane, tabs, stash,
 `Ctrl+Z` suspend, OSC title, `/highlights`.
 
+
+## Status — 0.6.0-fork (second tier)
+
+| Item | Where | Notes |
+| --- | --- | --- |
+| P1.6 undo/redo | `lib/undo.js` | `/undo` forks before the last prompt, restores files, returns the prompt to the composer; `/redo` reopens the untouched parent. One level each way; sending drops the redo. |
+| P2.2 command palette | `lib/palette.js` | `F1` or `/commands`. `Ctrl+K` is kill-line in the composer, so the palette is not `Ctrl+K`. |
+| Thinking toggle | `lib/ui.js`, `Ctrl+T` | Hides thinking boxes without losing the text; also a Settings row. |
+| Terminal title | `tui-transcript` → Terminal window title | `OSC 0` with the session title; cached so paint stays cheap. |
+| Suspend | `Ctrl+Z` | `SIGTSTP` after leaving the alternate screen; `SIGCONT` repaints. |
+
+Still open: custom keybinds (P2.1), session search/rename/pin (P2.4), message navigation (P2.5),
+subagent browsing (P2.6), queued-prompt editing (P2.7), diff viewer, light/system themes, `/btw`,
+terminal pane, tabs, stash, `/highlights`.
+
 ## Where dsh-oc-tui is already ahead — keep and polish
 
 | Area | dsh-oc-tui | OpenCode |

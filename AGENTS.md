@@ -159,6 +159,11 @@ it against throwaway profile directories.
   mount the Web server. Keep the module imports lazy so a missing package leaves the feature off
   instead of breaking the boot.
 - **Composer editing** (`lib/composer-edit.js`) is grapheme-safe and leaves `Ctrl+E`/`Ctrl+P` alone.
+  `Ctrl+K` is kill-line there, which is why the palette is `F1` and not the more common `Ctrl+K`.
+- **The palette** (`lib/palette.js`) is the only list of actions: a new shortcut gets a row there,
+  and its `key` must exist in all 17 catalogs. `Ctrl+P` stays the settings page.
+- **Undo** (`lib/undo.js`) is `/rewind`'s fork with the prompt returned to the composer; redo reopens
+  the untouched parent. Keep it one level each way: a deeper stack would need real session bookkeeping.
 
 ## Settings must work on both dsh generations
 

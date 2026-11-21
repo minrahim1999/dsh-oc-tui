@@ -405,6 +405,23 @@ ok("the dialog closed", app.overlay === null, "overlay = " + String(app.overlay)
   ok("its output and exit status are shown", frame.includes("exit code 4"))
 }
 
+{
+  // The palette is a real overlay: Ctrl+K, filter, Enter runs the action.
+  stdin.send("\x1bOP") // F1
+  await settle(10)
+  ok("F1 opens the command palette", app.overlay === "settings" && lastFrame().includes("Commands"))
+  stdin.send("think")
+  await settle(10)
+  ok("typing filters the palette", app.settingsItems.length === 1 && app.settingsItems[0].action === "thinking")
+  const before = app.thinkingVisible
+  stdin.send("\r")
+  await settle(10)
+  ok("Enter runs the chosen action", app.overlay === null && app.thinkingVisible === !before)
+  stdin.send("\x14") // Ctrl+T toggles it back
+  await settle(5)
+  ok("Ctrl+T toggles thinking directly", app.thinkingVisible === before)
+}
+
 Object.defineProperty(process, "stdin", realStdin)
 Object.defineProperty(process, "stdout", realStdout)
 console.log(report.join("\n"))
