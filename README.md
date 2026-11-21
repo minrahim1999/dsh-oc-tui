@@ -15,7 +15,9 @@ Chat with your agent, follow its work, and manage sessions without leaving your 
 > **About this fork.** [`minrahim1999/dsh-oc-tui`](https://github.com/minrahim1999/dsh-oc-tui) is a fork of
 > [`rayafriandion/dsh-oc-tui`](https://github.com/rayafriandion/dsh-oc-tui). It adds **agent modes** (Standard,
 > PTC, Minimal, Creator — the Web UI's presets) to the TUI: `/mode` lists and switches them, and Settings → Default
-> preset edits the same default the Web UI does. This build (`0.4.0-fork.1`) targets dsh `0.2.2` and was verified
+> preset edits the same default the Web UI does. Its launcher, `dsh-tui`, mirrors your Desktop app's plugins and
+> shared settings into the TUI before every launch (and sends TUI setting changes back on exit) — see
+> [Convenience launcher and Desktop sync](docs/user-guide.md#convenience-launcher-and-desktop-sync). This build (`0.4.0-fork.1`) targets dsh `0.2.2` and was verified
 > against `0.2.2-rc.5`. It is not published to npm; install it from a tarball (see
 > [Agent modes](docs/user-guide.md#agent-modes) and [From a checkout or tarball](docs/user-guide.md#from-a-checkout-or-tarball)).
 

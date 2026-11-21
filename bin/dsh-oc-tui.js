@@ -8,30 +8,45 @@
 //      so a missing one-time setup prints the exact command instead of a
 //      confusing empty boot,
 //   4. accepts --profile <name> (or DSH_TUI_PROFILE) to target a non-default
-//      profile; every other argument is forwarded to the TUI app.
-import { spawn } from 'node:child_process'
+//      profile; every other argument is forwarded to the TUI app,
+//   5. syncs the profile with the Desktop/Web profile first (lib/follow.js):
+//      their plugins are mirrored in and the shared settings merged both
+//      ways, and the settings are merged once more after the TUI exits.
+//      --no-sync (or DSH_TUI_SYNC=0) skips it.
+//
+// Installed as both `dsh-oc-tui` and the shorter `dsh-tui`.
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { delimiter, dirname, join, resolve } from 'node:path'
+import { basename, delimiter, dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
+import { CONFIG_FILE, describeSync, followProfile, restoreManifest } from '../lib/follow.js'
 
 const PACKAGE_NAME = 'dsh-oc-tui'
 const DSH_PACKAGE = '@deepseek-ai/dsh'
 
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+const COMMAND = basename(process.argv[1] ?? '').replace(/\.js$/, '') || 'dsh-oc-tui'
 
 function printHelp() {
-  process.stdout.write(`dsh-oc-tui ${manifest.version} — launch the DeepSeek Harness terminal UI
+  process.stdout.write(`${COMMAND} ${manifest.version} — launch the DeepSeek Harness terminal UI
 
 Usage:
-  dsh-oc-tui [--profile <name>] [app args...]
+  ${COMMAND} [--profile <name>] [--no-sync] [app args...]
 
 The launcher boots the dsh profile that has ${PACKAGE_NAME} installed and
 forwards every other argument to the TUI app (--resume, --model, --provider,
 --sidebar, --no-sidebar; see dsh --profile <name> --help).
 
+Before booting it syncs the profile with the Desktop app's profile (or web):
+their plugins are mirrored in, except Web-only ones, and the shared settings
+(model providers, default model, access control, default mode, …) are merged
+both ways. Settings changed in the TUI flow back when it exits. Configure it
+in $DSH_HOME/profiles/<name>/${CONFIG_FILE}.
+
 Options:
   --profile <name>   profile to boot (default: tui; env DSH_TUI_PROFILE)
+  --no-sync          skip the sync (env DSH_TUI_SYNC=0)
   -h, --help         show this help
   -V, --version      show the dsh-oc-tui version
 
@@ -39,7 +54,7 @@ One-time setup (requires pnpm on PATH):
   dsh plugin --profile tui add ${PACKAGE_NAME}
 
 Then:
-  dsh-oc-tui
+  ${COMMAND}
 `)
 }
 
@@ -52,9 +67,12 @@ function parseArgs(argv) {
   const forwarded = []
   let help = false
   let version = false
+  let sync = process.env.DSH_TUI_SYNC !== '0'
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
-    if (arg === '-h' || arg === '--help') {
+    if (arg === '--no-sync') {
+      sync = false
+    } else if (arg === '-h' || arg === '--help') {
       help = true
     } else if (arg === '-V' || arg === '--version') {
       version = true
@@ -71,7 +89,7 @@ function parseArgs(argv) {
       forwarded.push(arg)
     }
   }
-  return { profile, forwarded, help, version }
+  return { profile, forwarded, help, version, sync }
 }
 
 /** The harness home directory, matching dsh's own DSH_HOME convention. */
@@ -186,8 +204,65 @@ function launchDsh(profile, forwarded) {
   return undefined
 }
 
+/** `dsh plugin --profile <name> install`, captured; resolves the same dsh the launch uses. */
+function installPlugins(profile) {
+  const args = ['plugin', '--profile', profile, 'install']
+  const dshExecutable = findOnPath('dsh')
+  let command
+  let commandArgs
+  if (dshExecutable !== undefined) {
+    const entry = process.platform === 'win32' ? resolveDshEntry(dshExecutable) : undefined
+    ;[command, commandArgs] = entry !== undefined ? [process.execPath, [entry, ...args]] : [dshExecutable, args]
+  } else {
+    const npx = npxCommand()
+    if (npx === undefined) return { ok: false, output: 'neither dsh nor npx is on PATH' }
+    ;[command, commandArgs] = [npx.command, [...npx.args, '--yes', DSH_PACKAGE, ...args]]
+  }
+  const run = spawnSync(command, commandArgs, {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 10 * 60 * 1000,
+    shell: process.platform === 'win32' && /\.(cmd|bat)$/i.test(command),
+  })
+  return { ok: run.status === 0, output: `${run.stdout ?? ''}${run.stderr ?? ''}${run.error ? run.error.message : ''}` }
+}
+
+/** The pre-launch sync. A failure is reported and never stops the TUI from starting. */
+function syncBeforeLaunch(profile) {
+  const home = dshHome()
+  let result
+  try {
+    result = followProfile({ dshHome: home, target: profile, phase: 'launch' })
+  } catch (error) {
+    process.stderr.write(`${COMMAND}: sync skipped: ${error.message}\n`)
+    return
+  }
+  const summary = describeSync(result)
+  if (result.needsInstall) {
+    process.stderr.write(`${COMMAND}: ${summary || 'synced'}; installing plugins…\n`)
+    const install = installPlugins(profile)
+    if (!install.ok) {
+      // Boot the plugin set that last installed cleanly rather than a half-installed one.
+      restoreManifest(home, profile, result.previousManifest)
+      installPlugins(profile)
+      process.stderr.write(`${COMMAND}: plugin install failed; kept the previous plugins. ${install.output.trim().split('\n').slice(-6).join('\n')}\n`)
+      return
+    }
+  } else if (summary) {
+    process.stderr.write(`${COMMAND}: ${summary}\n`)
+  }
+}
+
+/** The post-exit sync: settings the TUI changed flow back to Desktop/Web. */
+function syncAfterExit(profile) {
+  try {
+    const summary = describeSync(followProfile({ dshHome: dshHome(), target: profile, phase: 'exit' }))
+    if (summary) process.stderr.write(`${COMMAND}: ${summary}\n`)
+  } catch (error) {
+    process.stderr.write(`${COMMAND}: sync after exit skipped: ${error.message}\n`)
+  }
+}
+
 function main() {
-  const { profile, forwarded, help, version } = parseArgs(process.argv.slice(2))
+  const { profile, forwarded, help, version, sync } = parseArgs(process.argv.slice(2))
   if (help) {
     printHelp()
     process.exit(0)
@@ -205,17 +280,24 @@ function main() {
     ? `dsh plugin --profile ${profile} add ${PACKAGE_NAME}`
     : `npx --yes ${DSH_PACKAGE} plugin --profile ${profile} add ${PACKAGE_NAME}`
   if (!checkProfile(profile, setupCommand)) process.exit(2)
+  if (sync) syncBeforeLaunch(profile)
 
   const child = launchDsh(profile, forwarded)
   if (child === undefined) {
-    process.stderr.write(`dsh-oc-tui: could not find dsh or npx on PATH — install ${DSH_PACKAGE} first\n`)
+    process.stderr.write(`${COMMAND}: could not find dsh or npx on PATH — install ${DSH_PACKAGE} first\n`)
     process.exit(1)
   }
+  // Ctrl+C belongs to the TUI (it cancels a turn; twice quits). The terminal
+  // delivers it to this launcher too, which must outlive dsh to sync on exit.
+  const ignoreSignal = () => {}
+  process.on('SIGINT', ignoreSignal)
+  process.on('SIGQUIT', ignoreSignal)
   child.on('error', (error) => {
-    process.stderr.write('dsh-oc-tui: failed to launch dsh: ' + error.message + '\n')
+    process.stderr.write(`${COMMAND}: failed to launch dsh: ` + error.message + '\n')
     process.exit(1)
   })
   child.on('exit', (code, signal) => {
+    if (sync) syncAfterExit(profile)
     process.exit(code ?? (signal ? 1 : 0))
   })
 }

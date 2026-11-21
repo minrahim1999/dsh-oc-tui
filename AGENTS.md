@@ -136,6 +136,16 @@ TUI opens — new, resumed, or a rewind fork — must go through
 rerun the script, review the diff, and earn the new `dshSupport.tested` entry with
 the suite plus a live boot that opens a session.
 
+## The launcher syncs the profile before dsh boots
+
+`bin/dsh-oc-tui.js` (installed as `dsh-oc-tui` and `dsh-tui`) runs `lib/follow.js`
+before it spawns dsh and again after dsh exits: plugins are mirrored one way from
+the Desktop/Web profile, the listed settings entries are merged both ways. A profile
+reads its plugins only at boot, so this cannot live in the plugin itself. Keep
+`lib/follow.js` free of dsh imports — it runs in plain Node before any dsh code — and
+never let a sync failure stop the TUI from starting. `tests/follow.test.mjs` covers
+it against throwaway profile directories.
+
 ## Settings must work on both dsh generations
 
 The two dsh lines store settings in structurally different places, and a row that

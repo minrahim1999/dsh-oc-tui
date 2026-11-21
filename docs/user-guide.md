@@ -195,40 +195,50 @@ The dump shows a `# == dsh-oc-tui` layer containing `tui-startup` and `tui-app`,
 ## Quick start
 
 ```sh
-dsh --profile tui                        # title screen; your first message creates a session
-dsh --profile tui --resume <sessionId>   # resume a persisted session
-dsh --profile tui --model <modelId>      # default model for new sessions
-dsh --profile tui --provider <route>     # default provider route
-dsh --profile tui --no-sidebar           # start without the session rail
-dsh --profile tui --help                 # the TUI's own flags
+dsh-tui                        # sync with Desktop, then open the title screen
+dsh-tui --resume <sessionId>   # resume a persisted session
+dsh-tui --model <modelId>      # default model for new sessions
+dsh-tui --provider <route>     # default provider route
+dsh-tui --no-sidebar           # start without the session rail
+dsh-tui --no-sync              # skip the Desktop sync for this launch
+dsh tui                        # the bare profile, no sync (dsh 0.2.2 takes the profile name positionally)
 ```
 
-The stock launcher hardcodes only `web` and `plugin` as bare subcommands, so `--profile tui` is the intended shape. Want the literal `dsh tui`? Add a shell alias:
+`dsh --profile tui …` still works and is what both forms run.
 
-```powershell
-function tui { dsh --profile tui @args }   # PowerShell $PROFILE
+### Convenience launcher and Desktop sync
+
+The package ships one launcher under two names, `dsh-tui` and `dsh-oc-tui`. It boots `dsh --profile tui`, checks first that the profile actually has the plugin installed (printing the one-time install command when it does not), and keeps the TUI in step with your Desktop app:
+
+1. **Before launch — plugins, one way.** Every bundle the Desktop profile lists is mirrored into the TUI profile, together with the dependency that provides it, and `dsh plugin --profile tui install` runs when a package changed. The TUI's own layers (`dsh-base`, `dsh-oc-tui`) stay first; bundles you added to the TUI yourself stay; a bundle removed from Desktop is removed again. The Web server (`dsh-web-app`) and shipped bundles that only wait for Web services are never mirrored. If an install fails, the previous plugin set is restored and the TUI starts anyway.
+2. **Before launch and after exit — settings, both ways.** The `llm-pi-ai` (model providers), `agent-default-model`, `permission`, `agent-preset-registry` (default mode), `agent-team` and `ptc-runtime` entries are merged three-way against the last sync: a change on one side wins, and when both sides changed the same entry the most recently written file wins. Sign-ins and API keys are shared already (`$DSH_HOME/.credentials.yaml`).
+
+The source is the `desktop` profile, or `web` when there is no Desktop profile. A launch prints one line when something changed — `dsh-tui: synced with desktop (+2 plugins; settings: agent-default-model)` — and nothing otherwise. Configure it in `$DSH_HOME/profiles/tui/tui-follow.json`:
+
+```json
+{
+  "source": "desktop",
+  "excludeBundles": ["@local/my-web-only-plugin"],
+  "includeBundles": [],
+  "settings": ["llm-pi-ai", "agent-default-model", "permission", "agent-preset-registry", "agent-team", "ptc-runtime"],
+  "plugins": true
+}
 ```
 
-```bat
-doskey tui=dsh --profile tui $*            :: CMD
-```
-
-### Convenience launcher
-
-The package also ships a `dsh-oc-tui` binary that is equivalent to `dsh --profile tui`, but checks first that the profile actually has the plugin installed and prints the one-time install command when it does not.
+`excludeBundles` adds to the built-in Web-only list (`includeBundles` takes an entry back out); `settings` replaces the default list and may only name entries the TUI composes; `"plugins": false` keeps the plugin set your own. A plugin that never activates in a terminal shows up in dsh's exit report (`N entries did not activate … waiting for services: webServer`) — add its bundle to `excludeBundles`. The merge state lives in `.tui-follow-state.json` beside it.
 
 ```sh
-dsh-oc-tui                 # boot the tui profile
-dsh-oc-tui --profile mytui # boot a different profile
-dsh-oc-tui --help          # launcher help
-dsh-oc-tui --version       # launcher version
+dsh-tui --profile mytui    # boot (and sync) a different profile
+dsh-tui --help             # launcher help
+dsh-tui --version          # launcher version
 ```
 
-It prefers the `dsh` on `PATH` and falls back to `npx --yes @deepseek-ai/dsh`. Install it with `npm install -g dsh-oc-tui`.
+It prefers the `dsh` on `PATH` and falls back to `npx --yes @deepseek-ai/dsh`. From a checkout, `npm link` puts both names on `PATH`.
 
 | Environment variable | Effect |
 | --- | --- |
 | `DSH_TUI_PROFILE` | Default profile when `--profile` is absent (default `tui`). |
+| `DSH_TUI_SYNC` | Set to `0` to skip the sync (same as `--no-sync`). |
 | `DSH_TUI_SKIP_CHECK` | Set to `1` to skip the profile preflight (advanced installs). |
 
 ## Usage
@@ -630,6 +640,7 @@ dsh-plugin.json      @dsh-std component manifest (discovery + preflight only)
 cordis.patch.yml     bundle patch layer (TUI rows; the agent plane follows in presets/)
 presets/*.patch.yml  Web UI preset layers copied by scripts/sync-presets.mjs (registry, presets, agent-plane moves)
 lib/agent-presets.js agent modes: per-session preset composition, /mode helpers
+lib/follow.js        launch-time Desktop sync: plugin mirror and two-way settings merge (pure Node)
 docs/用户手册.md       Chinese user manual
 docs/dsh-std-接入说明.md  @dsh-std interop scope and constraints (Chinese)
 tests/smoke.test.mjs standalone smoke tests
