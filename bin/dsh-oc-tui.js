@@ -33,10 +33,11 @@ function printHelp() {
 
 Usage:
   ${COMMAND} [--profile <name>] [--no-sync] [app args...]
+  ${COMMAND} mode [id]     open with the mode picker, or start in mode <id>
 
 The launcher boots the dsh profile that has ${PACKAGE_NAME} installed and
 forwards every other argument to the TUI app (--resume, --model, --provider,
---sidebar, --no-sidebar; see dsh --profile <name> --help).
+--mode, --sidebar, --no-sidebar; see dsh --profile <name> --help).
 
 Before booting it syncs the profile with the Desktop app's profile (or web):
 their plugins are mirrored in, except Web-only ones, and the shared settings
@@ -89,6 +90,9 @@ function parseArgs(argv) {
       forwarded.push(arg)
     }
   }
+  // `dsh-tui mode [id]` is shorthand for `--mode [id]`: the TUI app takes no
+  // positional arguments, so a bare word can only have meant the subcommand.
+  if (forwarded[0] === 'mode') forwarded[0] = '--mode'
   return { profile, forwarded, help, version, sync }
 }
 

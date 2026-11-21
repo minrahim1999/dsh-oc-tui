@@ -199,6 +199,8 @@ dsh-tui                        # sync with Desktop, then open the title screen
 dsh-tui --resume <sessionId>   # resume a persisted session
 dsh-tui --model <modelId>      # default model for new sessions
 dsh-tui --provider <route>     # default provider route
+dsh-tui mode                   # open with the mode picker
+dsh-tui mode ptc               # first session in PTC mode (same as --mode ptc)
 dsh-tui --no-sidebar           # start without the session rail
 dsh-tui --no-sync              # skip the Desktop sync for this launch
 dsh tui                        # the bare profile, no sync (dsh 0.2.2 takes the profile name positionally)
@@ -316,8 +318,9 @@ Deferring is deliberate, not a cancel: with no other answerer the tool reports `
 
 A mode is a DSH **agent preset**: it decides which tools, prompt sections and skills the agent gets. The TUI offers the Web UI's presets — **Standard** (`standard`), **PTC** (`ptc`, programmatic tool calling through `run_code`), **Minimal** (`minimal`) and **Creator** (`cordis`).
 
-- `/mode` lists the modes, marking the current one and the default. On the title screen it is a one-line summary; inside a session it is a block in the transcript that also names any mode that cannot load and why.
-- `/mode <id>` (or its name, case-insensitive: `/mode creator`) picks one. On the title screen it becomes the mode of the next session you open. In a session that has not started a turn it switches in place. Once a session has run a turn its mode is fixed — the transcript was written against its tools — so the choice applies to the next session (`/new`).
+- `/mode` opens the **mode picker**: the modes with the current one and the default marked, and any mode that cannot load dimmed with its reason. `↑`/`↓` move, `Enter` picks, `Esc` closes. Its subtitle says what `Enter` will do here (pick the next session's mode, switch this session, or — once this session has run a turn — pick the next session's).
+- From the shell, `dsh-tui mode` opens the TUI with the picker already showing, and `dsh-tui mode ptc` (or `--mode ptc`, also `dsh tui --mode ptc`) starts with that mode for the first session.
+- `/mode <id>` (or its name, case-insensitive: `/mode creator`) picks one without the picker. On the title screen it becomes the mode of the next session you open. In a session that has not started a turn it switches in place. Once a session has run a turn its mode is fixed — the transcript was written against its tools — so the choice applies to the next session (`/new`).
 - **Settings → Main → Default preset** sets the default for new sessions. It writes `agent-preset-registry.selectedDefault`, the same field the Web UI's mode picker writes, so a profile that shares that entry with Desktop keeps one default. A `/mode` choice outranks the default until the TUI exits.
 - The current mode shows in the status rail's **MODE** section and, without the rail, at the start of the composer label (`PTC · ollama · model`). The session-start line names it too.
 - A resumed session runs the mode its log records. A session recorded before modes existed opens in the default; one recorded under a mode that no longer exists falls back to the default with a warning. A rewind fork keeps its parent's mode.
