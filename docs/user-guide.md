@@ -237,6 +237,8 @@ dsh-tui --version          # launcher version
 
 It prefers the `dsh` on `PATH` and falls back to `npx --yes @deepseek-ai/dsh`. From a checkout, `npm link` puts both names on `PATH`.
 
+**The process is named `deepseek`.** Terminals that title a tab after its foreground process (VS Code's default `${process}`, iTerm2, tmux) would otherwise read `node`. On macOS and Linux `dsh-tui` is a small shell script that runs the launcher through a hard link, `$DSH_HOME/bin/deepseek`, to a self-contained node: `$DSH_TUI_NODE`, the `node` on `PATH`, or the node dsh installs under `$DSH_HOME/dsh-runtimes`, whichever links and runs first (Homebrew's node loads `libnode` beside itself, so it cannot be linked elsewhere). The choice is remembered in `$DSH_HOME/bin/.deepseek.source` and redone when that node changes. `DSH_TUI_PROCESS_NAME=…` picks another name; `node` turns the link off. `dsh-oc-tui` is the same launcher without the rename, and the one to use on Windows.
+
 | Environment variable | Effect |
 | --- | --- |
 | `DSH_TUI_PROFILE` | Default profile when `--profile` is absent (default `tui`). |
@@ -322,7 +324,7 @@ A mode is a DSH **agent preset**: it decides which tools, prompt sections and sk
 - From the shell, `dsh-tui mode` opens the TUI with the picker already showing, and `dsh-tui mode ptc` (or `--mode ptc`, also `dsh tui --mode ptc`) starts with that mode for the first session.
 - `/mode <id>` (or its name, case-insensitive: `/mode creator`) picks one without the picker. On the title screen it becomes the mode of the next session you open. In a session that has not started a turn it switches in place. Once a session has run a turn its mode is fixed — the transcript was written against its tools — so the choice applies to the next session (`/new`).
 - **Settings → Main → Default preset** sets the default for new sessions. It writes `agent-preset-registry.selectedDefault`, the same field the Web UI's mode picker writes, so a profile that shares that entry with Desktop keeps one default. A `/mode` choice outranks the default until the TUI exits.
-- The current mode shows in the status rail's **MODE** section and, without the rail, at the start of the composer label (`PTC · ollama · model`). The session-start line names it too.
+- The current mode shows at the composer's top right, beside the thinking level (`PTC  High · Tab`) — click it to open the picker — and in the status rail's **MODE** section. The session-start line names it too.
 - A resumed session runs the mode its log records. A session recorded before modes existed opens in the default; one recorded under a mode that no longer exists falls back to the default with a warning. A rewind fork keeps its parent's mode.
 
 **How it is composed.** The bundle's patch list (`package.json` → `dsh.bundle.patch`) adds the `presets/*.patch.yml` layers after `cordis.patch.yml`. They are copied from `@deepseek-ai/dsh-web-app` by `npm run sync-presets` (see [Development](#development)): they disable the base's process-wide agent rows, mount `@deepseek-ai/dsh-agent-preset-registry`, and declare the four presets. Each session the TUI creates is bound to one preset through `ctx.agents.create({ meta: { agentPreset }, setup })`, the same composition the harness's session controller performs for Web sessions.

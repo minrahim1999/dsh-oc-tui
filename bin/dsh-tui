@@ -1,0 +1,77 @@
+#!/bin/sh
+# dsh-tui: the dsh-oc-tui launcher (bin/dsh-oc-tui.js) under a process named
+# "deepseek", so terminal tabs that show the foreground process (VS Code's
+# default `${process}` title, iTerm2, tmux) read "deepseek" instead of "node".
+#
+# The kernel names a process after the executable file it runs; a symlink
+# resolves to the target's name, and a copied system binary is killed, so the
+# launcher runs through a hard link to a node binary: $DSH_HOME/bin/deepseek.
+# Only a self-contained node survives being linked elsewhere — Homebrew's
+# loads libnode relative to its own directory — so each candidate is tried
+# once and the one that runs is remembered: $DSH_TUI_NODE, the node on PATH,
+# then the node dsh installs for itself under $DSH_HOME/dsh-runtimes. When none
+# can be linked the launcher simply runs as `node`. This script then replaces
+# itself with that process, which stays the terminal's foreground process.
+#
+# POSIX only; on Windows use `dsh-oc-tui`, the same launcher.
+# DSH_TUI_PROCESS_NAME picks another name; `node` disables the link.
+set -e
+
+launcher=$0
+while [ -L "$launcher" ]; do
+  directory=$(CDPATH= cd -- "$(dirname -- "$launcher")" && pwd -P)
+  target=$(readlink "$launcher")
+  case "$target" in
+    /*) launcher=$target ;;
+    *) launcher=$directory/$target ;;
+  esac
+done
+here=$(CDPATH= cd -- "$(dirname -- "$launcher")" && pwd -P)
+home=${DSH_HOME:-$HOME/.dsh}
+bundled=$home/dsh-runtimes/dsh-primary-runtime/dependencies/node/bin/node
+
+node_bin=$(command -v node || true)
+runner=$node_bin
+[ -n "$runner" ] || runner=$bundled
+
+name=${DSH_TUI_PROCESS_NAME:-deepseek}
+case "$name" in
+  ''|node|*/*) ;;
+  *)
+    link=$home/bin/$name
+    marker=$home/bin/.$name.source
+    linked=
+    # Reuse the link while it is still the very file it was made from.
+    if [ -f "$marker" ]; then
+      source_path=$(cat "$marker" 2>/dev/null || true)
+      if [ -n "$source_path" ] && [ "$link" -ef "$source_path" ]; then linked=1; fi
+    fi
+    if [ -z "$linked" ]; then
+      for candidate in "${DSH_TUI_NODE:-}" "$node_bin" "$bundled"; do
+        [ -n "$candidate" ] && [ -x "$candidate" ] || continue
+        real=$("$candidate" -e 'process.stdout.write(process.execPath)' 2>/dev/null) || continue
+        [ -n "$real" ] || continue
+        mkdir -p "$home/bin" 2>/dev/null || break
+        ln -f "$real" "$link" 2>/dev/null || continue
+        # A subshell, so a linked node that dyld aborts is not reported here.
+        # The trailing `exit` keeps the subshell from exec'ing node itself.
+        if ( "$link" -e 'process.exit(0)'; exit $? ) >/dev/null 2>&1; then
+          printf '%s' "$real" > "$marker"
+          linked=1
+          break
+        fi
+        rm -f "$link"
+      done
+    fi
+    if [ -n "$linked" ]; then runner=$link; fi
+    ;;
+esac
+
+if [ -z "$runner" ] || [ ! -x "$runner" ]; then
+  echo "dsh-tui: no node found (PATH, or $bundled)" >&2
+  exit 1
+fi
+
+DSH_TUI_COMMAND=dsh-tui
+export DSH_TUI_COMMAND
+exec "$runner" "$here/dsh-oc-tui.js" "$@"

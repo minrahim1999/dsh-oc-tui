@@ -26,7 +26,7 @@ const PACKAGE_NAME = 'dsh-oc-tui'
 const DSH_PACKAGE = '@deepseek-ai/dsh'
 
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
-const COMMAND = basename(process.argv[1] ?? '').replace(/\.js$/, '') || 'dsh-oc-tui'
+const COMMAND = process.env.DSH_TUI_COMMAND || basename(process.argv[1] ?? '').replace(/\.js$/, '') || 'dsh-oc-tui'
 
 function printHelp() {
   process.stdout.write(`${COMMAND} ${manifest.version} — launch the DeepSeek Harness terminal UI
