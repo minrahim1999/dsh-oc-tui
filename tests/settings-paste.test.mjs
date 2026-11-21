@@ -422,6 +422,25 @@ ok("the dialog closed", app.overlay === null, "overlay = " + String(app.overlay)
   ok("Ctrl+T toggles thinking directly", app.thinkingVisible === before)
 }
 
+{
+  // Ctrl+Z leaves the alternate screen and asks for SIGTSTP; SIGCONT brings the
+  // frame back. A real tty is not required to prove the sequence.
+  const kills = []
+  const realKill = process.kill
+  process.kill = (pid, signal) => { kills.push([pid, signal]); return true }
+  try {
+    stdin.send("\x1a")
+    await settle(20)
+    ok("Ctrl+Z requests SIGTSTP for this process", kills.some(([pid, signal]) => pid === process.pid && signal === "SIGTSTP"), JSON.stringify(kills))
+    ok("the alternate screen is left before suspending", stdin.rawMode === false)
+    process.emit("SIGCONT")
+    await settle(20)
+    ok("SIGCONT restores raw mode", stdin.rawMode === true)
+  } finally {
+    process.kill = realKill
+  }
+}
+
 Object.defineProperty(process, "stdin", realStdin)
 Object.defineProperty(process, "stdout", realStdout)
 console.log(report.join("\n"))
