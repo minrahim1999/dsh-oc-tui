@@ -25,6 +25,7 @@ Published on **npm** as [`dsh-oc-tui`](https://www.npmjs.com/package/dsh-oc-tui)
   - [Keybindings](#keybindings)
   - [Slash commands](#slash-commands)
   - [Interactive prompts](#interactive-prompts)
+  - [Agent modes](#agent-modes)
   - [Thinking intensity](#thinking-intensity)
   - [Session stats and the context meter](#session-stats-and-the-context-meter)
   - [The status rail](#the-status-rail)
@@ -79,7 +80,7 @@ dsh --version
 pnpm --version
 ```
 
-**Compatibility.** Verified against dsh `0.2.1-rc.2`, `0.2.0-rc.2` and `0.1.2-rc.1` (`0.1.1-rc.2` before that). `0.2.1-rc.5` was compared package by package: its core is byte-identical to rc.2, and the one display change — reasoning signatures — is handled here as well. The supported range is declared as `engines.dsh` (`>=0.1.1-rc.2 <0.3.0-0`) in `package.json`: since dsh 0.2.1 the install gate reads that declaration first and ignores the peer list, so a host outside the range is refused at load until its exact version is exempted with `dsh plugin allow-version`. DSH renamed parts of the session API in 0.1.2 — `Session.events` became `snapshotEvents()` — and this plugin reads whichever accessor the host provides, so one build serves both lines.
+**Compatibility (this fork).** `0.4.0-fork.1` targets dsh `0.2.2` — its agent modes mount the 0.2.2 preset layers — so `engines.dsh` is `>=0.2.2-rc.1 <0.3.0-0` and `dshSupport.tested` is `0.2.2-rc.5`, the host the suite and a live boot were run against. For older hosts use upstream `dsh-oc-tui@0.3.0`, whose history follows. **Upstream compatibility.** Verified against dsh `0.2.1-rc.2`, `0.2.0-rc.2` and `0.1.2-rc.1` (`0.1.1-rc.2` before that). `0.2.1-rc.5` was compared package by package: its core is byte-identical to rc.2, and the one display change — reasoning signatures — is handled here as well. The supported range is declared as `engines.dsh` (`>=0.1.1-rc.2 <0.3.0-0`) in `package.json`: since dsh 0.2.1 the install gate reads that declaration first and ignores the peer list, so a host outside the range is refused at load until its exact version is exempted with `dsh plugin allow-version`. DSH renamed parts of the session API in 0.1.2 — `Session.events` became `snapshotEvents()` — and this plugin reads whichever accessor the host provides, so one build serves both lines.
 
 **dsh 0.2.2 changed how a model is chosen, and this build follows both lines.** From `0.2.2-rc.1` the step's route is fixed before prompt assembly and before `agent/pre-step`, and the `agent/request` waterfall now *rejects* a listener that proposes another provider, model or reasoning effort — it throws `agent/request proposed "…" after step preparation fixed "…"` and the turn dies. A choice has to be recorded between steps with `agent.model.select()`, which appends a durable `model/selection` event. This plugin detects `agent.model.select` on the live agent: when it exists, `/model`, `/provider`, the reasoning slider and the stored reasoning level all go through it, and the waterfall is left untouched; on `0.2.1` and older, where no agent owns a selection, the waterfall still carries them. One build serves both — nothing to configure. Reading a session's route now prefers the recorded selection over the options it was created with, so a resumed session shows the model it will actually use. Nothing else in `0.2.2` needed adapting: the session, projection, command, skill, attachment, approval, question, MCP-client and settings APIs the TUI uses are unchanged, and dsh's own new minimum of Node.js `24.9` is only dsh's requirement (this plugin still runs on `^22.19`).
 
@@ -189,7 +190,7 @@ Verify without booting:
 dsh --profile tui --dump-config
 ```
 
-The dump shows a `# == dsh-oc-tui` layer containing `tui-startup`, `tui-app`, and the `tool-ask-user` row — three rows, no agent-preset one (see the compatibility note above).
+The dump shows a `# == dsh-oc-tui` layer containing `tui-startup` and `tui-app`, followed by the preset layers: `agent-preset-registry` and `preset-standard`, `preset-ptc`, `preset-minimal`, `preset-cordis` (see [Agent modes](#agent-modes)).
 
 ## Quick start
 
@@ -265,7 +266,7 @@ Choose a color theme under `Ctrl+P → Main → Theme`. DeepSeek Standard is the
 
 ### Slash commands
 
-Built in: `/help` `/settings` `/new` `/resume <id>` `/model <id>` `/provider <route>` `/rewind` `/branch` `/stats` `/clear` `/cancel` `/quit` (`/exit` also works).
+Built in: `/help` `/settings` `/new` `/resume <id>` `/model <id>` `/provider <route>` `/mode [id]` `/rewind` `/branch` `/stats` `/clear` `/cancel` `/quit` (`/exit` also works). `/mode` is described under [Agent modes](#agent-modes).
 
 Typing `/` opens a bounded suggestion list. Use `↑`/`↓` to select, `Tab` or a click to complete, and `Esc` to dismiss it while keeping the draft. `Enter` completes an unfinished command; an exact command executes immediately.
 
@@ -283,7 +284,7 @@ Harness commands — `/compact`, `/goal`, `/plan`, … — are forwarded to `ctx
 
 An approval that outlives the deadline its caller set disappears on its own. That is an **expiry**, not a cancellation: the caller is told `expired` rather than `cancelled`, so a timeout can never be read as a human decision.
 
-**Questions.** The model can ask you directly through the `ask_user_question` tool. The tool is declared by this bundle's `tool-ask-user` row — `dsh-base` mounts the `user-questions` service but not the tool, and a TUI session composes from the base rather than from an agent preset — and it is answered by a modal:
+**Questions.** The model can ask you directly through the `ask_user_question` tool. The tool is a preset row — Standard, PTC and Creator mount `@deepseek-ai/dsh-tool-ask-user`, Minimal deliberately does not — and it is answered by a modal:
 
 | Key | Action |
 | --- | --- |
@@ -300,6 +301,20 @@ Questions are staged one at a time, exactly as the Web UI composer stages them, 
 A question carrying the `plan-review` intent — what `exit_plan_mode` sends — renders the plan markdown in a scrollable pane above `Approve` / `Keep planning`. Answering `Approve` exits plan mode and the model continues; anything else keeps planning.
 
 Deferring is deliberate, not a cancel: with no other answerer the tool reports `no user-questions answerer accepted the request`, which cannot be mistaken for a human choice.
+
+### Agent modes
+
+A mode is a DSH **agent preset**: it decides which tools, prompt sections and skills the agent gets. The TUI offers the Web UI's presets — **Standard** (`standard`), **PTC** (`ptc`, programmatic tool calling through `run_code`), **Minimal** (`minimal`) and **Creator** (`cordis`).
+
+- `/mode` lists the modes, marking the current one and the default. On the title screen it is a one-line summary; inside a session it is a block in the transcript that also names any mode that cannot load and why.
+- `/mode <id>` (or its name, case-insensitive: `/mode creator`) picks one. On the title screen it becomes the mode of the next session you open. In a session that has not started a turn it switches in place. Once a session has run a turn its mode is fixed — the transcript was written against its tools — so the choice applies to the next session (`/new`).
+- **Settings → Main → Default preset** sets the default for new sessions. It writes `agent-preset-registry.selectedDefault`, the same field the Web UI's mode picker writes, so a profile that shares that entry with Desktop keeps one default. A `/mode` choice outranks the default until the TUI exits.
+- The current mode shows in the status rail's **MODE** section and, without the rail, at the start of the composer label (`PTC · ollama · model`). The session-start line names it too.
+- A resumed session runs the mode its log records. A session recorded before modes existed opens in the default; one recorded under a mode that no longer exists falls back to the default with a warning. A rewind fork keeps its parent's mode.
+
+**How it is composed.** The bundle's patch list (`package.json` → `dsh.bundle.patch`) adds the `presets/*.patch.yml` layers after `cordis.patch.yml`. They are copied from `@deepseek-ai/dsh-web-app` by `npm run sync-presets` (see [Development](#development)): they disable the base's process-wide agent rows, mount `@deepseek-ai/dsh-agent-preset-registry`, and declare the four presets. Each session the TUI creates is bound to one preset through `ctx.agents.create({ meta: { agentPreset }, setup })`, the same composition the harness's session controller performs for Web sessions.
+
+**Creator in the TUI.** The `cordis` preset's runtime-inspection tool waits for the `cordisInspect` service, which only the Web app's host mounts, so in a stock `tui` profile `/mode` lists Creator as unavailable (`waiting for cordisInspect`) and refuses to open a session in it.
 
 ### Thinking intensity
 
@@ -347,7 +362,7 @@ When the sections outgrow the window a scrollbar appears in the rail's right edg
 - **MCP** — see [MCP servers](#mcp-servers).
 - **Update** — see [In-app updates](#in-app-updates).
 
-Providers whose profile resolves get a group — including a whole-section route such as DeepSeek, whose profile is the plugin entry's own Config and therefore always exists, so a fresh install can enter its key. A catalog route you have not adopted stays in the add picker instead, and a route authenticated by a sign-in (DeepSeek Account) shows that instead of a key field. **Default preset** is shown only when the profile mounts an agent-preset roster, because the choice list is that roster — and this plugin deliberately mounts none (see the compatibility note above), so on a stock `tui` profile the row is absent rather than empty. Where a roster *is* mounted, note that a TUI session composes process-wide from the base, so the stored default applies where a session is created from a preset. Web-UI-only options (`ui-theme` appearance, the Web UI's `locale`) are not shown because they have no effect in the TUI; the TUI's own **Language** row is a separate namespace (`tui-locale`) — see [Language](#language).
+Providers whose profile resolves get a group — including a whole-section route such as DeepSeek, whose profile is the plugin entry's own Config and therefore always exists, so a fresh install can enter its key. A catalog route you have not adopted stays in the add picker instead, and a route authenticated by a sign-in (DeepSeek Account) shows that instead of a key field. **Default preset** lists the modes the profile's preset roster can load and writes the registry's `selectedDefault` (the 0.1.x namespace `agent-presets.default` on hosts that still have it); new sessions open in it — see [Agent modes](#agent-modes). Web-UI-only options (`ui-theme` appearance, the Web UI's `locale`) are not shown because they have no effect in the TUI; the TUI's own **Language** row is a separate namespace (`tui-locale`) — see [Language](#language).
 
 ### Language
 
@@ -481,6 +496,15 @@ The package carries a [`dsh-plugin.json`](../dsh-plugin.json) manifest and a fac
 AI agents working in this checkout should read [AGENTS.md](https://github.com/rayafriandion/dsh-oc-tui/blob/main/AGENTS.md) first — it
 records the build/install loop as a rule rather than a suggestion.
 
+**Refreshing the preset layers after a dsh upgrade.** `presets/*.patch.yml` are copies of the installed dsh's Web presets. Regenerate them, review the diff, run the suite and a live boot against that dsh, then add it to `dshSupport.tested`:
+
+```sh
+# Desktop app (packages live inside app.asar, so use its runtime):
+ELECTRON_RUN_AS_NODE=1 "$DSH_NODE_EXECUTABLE" scripts/sync-presets.mjs
+# npm-installed dsh, or an explicit package directory:
+npm run sync-presets -- /path/to/node_modules/@deepseek-ai/dsh-web-app
+```
+
 ```sh
 npm run check   # node --check over lib/, bin/
 npm test        # standalone smoke tests (no dsh needed)
@@ -603,7 +627,9 @@ bin/apply-update.cjs detached applier: waits for the TUI to exit, installs the s
 install.sh           one-command installer (Linux/macOS)
 install.ps1          one-command installer (Windows)
 dsh-plugin.json      @dsh-std component manifest (discovery + preflight only)
-cordis.patch.yml     bundle patch layer (TUI rows, ask-user tool; no agent-preset row, with the reason in a comment)
+cordis.patch.yml     bundle patch layer (TUI rows; the agent plane follows in presets/)
+presets/*.patch.yml  Web UI preset layers copied by scripts/sync-presets.mjs (registry, presets, agent-plane moves)
+lib/agent-presets.js agent modes: per-session preset composition, /mode helpers
 docs/用户手册.md       Chinese user manual
 docs/dsh-std-接入说明.md  @dsh-std interop scope and constraints (Chinese)
 tests/smoke.test.mjs standalone smoke tests

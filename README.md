@@ -12,6 +12,13 @@ Chat with your agent, follow its work, and manage sessions without leaving your 
 
 [English guide](docs/user-guide.md) · [中文用户手册](docs/用户手册.md) · [npm](https://www.npmjs.com/package/dsh-oc-tui) · [Plugin marketplace](https://awesome-dsh-plugin.com/zh/p/rayafriandion/dsh-oc-tui/)
 
+> **About this fork.** [`minrahim1999/dsh-oc-tui`](https://github.com/minrahim1999/dsh-oc-tui) is a fork of
+> [`rayafriandion/dsh-oc-tui`](https://github.com/rayafriandion/dsh-oc-tui). It adds **agent modes** (Standard,
+> PTC, Minimal, Creator — the Web UI's presets) to the TUI: `/mode` lists and switches them, and Settings → Default
+> preset edits the same default the Web UI does. This build (`0.4.0-fork.1`) targets dsh `0.2.2` and was verified
+> against `0.2.2-rc.5`. It is not published to npm; install it from a tarball (see
+> [Agent modes](docs/user-guide.md#agent-modes) and [From a checkout or tarball](docs/user-guide.md#from-a-checkout-or-tarball)).
+
 ## A clearer view of your agent
 
 - **Stay in the flow.** Read streaming replies, reasoning, tool activity, Markdown, images, and Mermaid diagrams in one conversation.

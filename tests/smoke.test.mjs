@@ -1748,18 +1748,16 @@ function gridDiff(grid, screen, cols, rows) {
 
 console.log("")
 // ---- bundle patch ----
-// dsh 0.2.0 reports a row that names a peer-incompatible package as a
-// wall-of-text "may cause crashes or data loss" block at every boot, and a row
-// naming a package this dsh cannot resolve is skipped silently instead of
-// loading. Both ends of the agent-preset rename are therefore unusable as a
-// bundle row, so the patch mounts no roster at all — these assertions keep a
-// later edit from quietly reintroducing one.
+// The TUI's own layer declares only its two rows. The agent plane — the preset
+// registry, the preset declarations and the model-facing tools, including
+// `ask_user_question` — lives in the presets/*.patch.yml layers that follow it
+// (tests/agent-presets.test.mjs covers those), so the first layer must never
+// grow a roster row or a process-wide copy of a preset's tool.
 const PATCH = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "cordis.patch.yml"), "utf8")
 const patchRows = [...PATCH.matchAll(/^\s+- id: (\S+)[\t ]*\r?\n\s+name: '([^']+)'/gm)].map((m) => [m[1], m[2]])
 eq("bundle rows", patchRows, [
   ["tui-startup", "dsh-oc-tui/startup"],
   ["tui-app", "dsh-oc-tui"],
-  ["tool-ask-user", "@deepseek-ai/dsh-tool-ask-user"],
 ])
 ok("the bundle names no pre-0.2.0 roster provider", !patchRows.some(([, name]) => name === "@deepseek-ai/dsh-agent-presets"))
 ok("the bundle names no declarative preset row", !patchRows.some(([, name]) => name === "@deepseek-ai/dsh-agent-preset"))
