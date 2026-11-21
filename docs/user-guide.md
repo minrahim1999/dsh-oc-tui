@@ -26,6 +26,7 @@ Published on **npm** as [`dsh-oc-tui`](https://www.npmjs.com/package/dsh-oc-tui)
   - [Slash commands](#slash-commands)
   - [Interactive prompts](#interactive-prompts)
   - [Agent modes](#agent-modes)
+  - [Folded process](#folded-process)
   - [Thinking intensity](#thinking-intensity)
   - [Session stats and the context meter](#session-stats-and-the-context-meter)
   - [The status rail](#the-status-rail)
@@ -330,6 +331,14 @@ A mode is a DSH **agent preset**: it decides which tools, prompt sections and sk
 **How it is composed.** The bundle's patch list (`package.json` → `dsh.bundle.patch`) adds the `presets/*.patch.yml` layers after `cordis.patch.yml`. They are copied from `@deepseek-ai/dsh-web-app` by `npm run sync-presets` (see [Development](#development)): they disable the base's process-wide agent rows, mount `@deepseek-ai/dsh-agent-preset-registry`, and declare the four presets. Each session the TUI creates is bound to one preset through `ctx.agents.create({ meta: { agentPreset }, setup })`, the same composition the harness's session controller performs for Web sessions.
 
 **Creator in the TUI.** The `cordis` preset's runtime-inspection tool waits for the `cordisInspect` service, which only the Web app's host mounts, so in a stock `tui` profile `/mode` lists Creator as unavailable (`waiting for cordisInspect`) and refuses to open a session in it.
+
+### Folded process
+
+While a turn runs, everything it does streams into the transcript: thinking, tool calls, context notes. When it **completes**, its process folds behind one summary row under your prompt — `▸ Worked for 9.3s · 4 steps · 2 tool calls · click to expand` — the way the Web UI's detailed view folds a finished turn. Click the row to expand the whole process again, and again to fold it.
+
+- Assistant replies stay visible; only their thinking folds. **Settings → Main → Replies kept when folded** set to *final answer only* folds the replies before the last one too (the Web UI's `foldedReplies`).
+- **Settings → Main → Fold process when done** set to *never* keeps every turn open.
+- A cancelled or failed turn does not fold, so what went wrong stays on screen. A resumed session folds its completed turns as it replays them.
 
 ### Thinking intensity
 
